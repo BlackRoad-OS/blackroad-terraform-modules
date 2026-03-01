@@ -18,7 +18,8 @@ jobs:
 
       - name: Set up Python
         uses: actions/setup-python@v5
-        uses: actions/setup-pn-version: ${{ env.PYTHON_VERSION }}
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install ruff
         run: pip install ruff
