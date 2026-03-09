@@ -6,9 +6,42 @@
 [![Modules](https://img.shields.io/badge/built--in%20modules-8-green)](#built-in-modules)
 [![Providers](https://img.shields.io/badge/providers-aws%20%7C%20gcp%20%7C%20kubernetes-orange)](#built-in-modules)
 
-> Production-grade Python registry for managing, generating, and validating Terraform modules.
+> Production-grade Python registry for managing, generating, and validating Terraform modules.  
 > Store modules in SQLite, render HCL templates with variable substitution, validate syntax,
 > export plans, and generate markdown documentation — all from the CLI or Python API.
+
+---
+
+## Table of Contents
+
+- [Features](#-features)
+- [Built-in Modules](#-built-in-modules)
+- [Quick Start](#-quick-start)
+- [Installation](#-installation)
+- [CLI Reference](#-cli-reference)
+  - [list](#list)
+  - [register](#register)
+  - [generate](#generate)
+  - [validate](#validate)
+  - [plan](#plan)
+  - [search](#search)
+  - [docs](#docs)
+  - [stats](#stats)
+- [Python API](#-python-api)
+  - [TerraformRegistry](#terraformregistry)
+  - [TerraformVariable](#terraformvariable)
+  - [TerraformOutput](#terraformoutput)
+  - [TerraformExample](#terraformexample)
+  - [TerraformModule](#terraformmodule)
+  - [ValidationResult](#validationresult)
+- [HCL Template Format](#-hcl-template-format)
+- [Validation Rules](#-validation-rules)
+- [Database](#-database)
+- [Project Structure](#-project-structure)
+- [Running Tests](#-running-tests)
+- [Contributing](#-contributing)
+- [Security](#-security)
+- [License](#-license)
 
 ---
 
@@ -74,6 +107,34 @@ python terraform_modules.py stats
 
 ---
 
+## 📥 Installation
+
+### Requirements
+
+| Dependency | Version | Purpose |
+|------------|---------|---------|
+| Python | ≥ 3.10 | Runtime |
+| `typer[all]` | ≥ 0.9.0 | CLI framework |
+| `rich` | ≥ 13.0.0 | Terminal output |
+
+### Install
+
+```bash
+# Clone the repository
+git clone https://github.com/BlackRoad-OS/blackroad-terraform-modules.git
+cd blackroad-terraform-modules
+
+# Install runtime dependencies
+pip install typer[all] rich
+
+# (Optional) Install all dev dependencies
+pip install -r requirements.txt
+```
+
+The registry database is created automatically at `~/.blackroad/terraform-modules.db` on first run.
+
+---
+
 ## 📖 CLI Reference
 
 ### `list`
@@ -82,12 +143,22 @@ python terraform_modules.py list [--provider PROVIDER] [--resource RESOURCE]
 ```
 List all registered modules, optionally filtered by provider or resource type.
 
+**Options:**
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--provider` | `-p` | Filter by cloud provider (`aws`, `gcp`, `kubernetes`, …) |
+| `--resource` | `-r` | Filter by Terraform resource type |
+
+---
+
 ### `register`
 ```
 python terraform_modules.py register NAME PROVIDER RESOURCE_TYPE TEMPLATE_FILE \
   [--description DESC] [--version VERSION]
 ```
 Register a new module from an HCL template file.
+
+---
 
 ### `generate`
 ```
@@ -96,11 +167,15 @@ python terraform_modules.py generate MODULE_NAME_OR_ID \
 ```
 Render a module's HCL template with variable substitution.
 
+---
+
 ### `validate`
 ```
 python terraform_modules.py validate TEMPLATE_FILE
 ```
 Validate HCL syntax with static analysis.
+
+---
 
 ### `plan`
 ```
@@ -108,17 +183,23 @@ python terraform_modules.py plan MODULE_NAME_OR_ID --var key=value [...]
 ```
 Export a human-readable Terraform plan.
 
+---
+
 ### `search`
 ```
 python terraform_modules.py search QUERY
 ```
 Search modules by name, description, provider, or tags.
 
+---
+
 ### `docs`
 ```
 python terraform_modules.py docs MODULE_NAME_OR_ID
 ```
 Generate and display Markdown documentation for a module.
+
+---
 
 ### `stats`
 ```
@@ -129,6 +210,113 @@ Display registry statistics: module counts and download leaderboard.
 ---
 
 ## 🐍 Python API
+
+### `TerraformRegistry`
+
+The main entry point. Manages the SQLite database and all module operations.
+
+```python
+from terraform_modules import TerraformRegistry
+
+registry = TerraformRegistry()                            # default DB path
+registry = TerraformRegistry(db_path=Path("custom.db"))  # custom path
+```
+
+| Method | Signature | Returns | Description |
+|--------|-----------|---------|-------------|
+| `register_module` | `(name, provider, resource_type, hcl_template, variables, outputs, ...)` | `TerraformModule` | Register a new module |
+| `get_module` | `(module_id_or_name)` | `TerraformModule` | Fetch a module by ID or name |
+| `list_modules` | `(provider_filter?, resource_type_filter?)` | `list[TerraformModule]` | List/filter modules |
+| `generate_tf` | `(module_id_or_name, vars)` | `str` | Render HCL with variable substitution |
+| `validate_hcl` | `(hcl_string)` | `ValidationResult` | Static HCL analysis |
+| `export_plan` | `(module_id_or_name, vars)` | `str` | Human-readable plan export |
+| `generate_docs` | `(module_id_or_name)` | `str` | Auto-generate Markdown docs |
+| `search` | `(query)` | `list[TerraformModule]` | Full-text search |
+| `get_stats` | `()` | `dict` | Registry statistics |
+| `delete_module` | `(module_id_or_name)` | `bool` | Delete a module |
+
+---
+
+### `TerraformVariable`
+
+```python
+from terraform_modules import TerraformVariable
+
+TerraformVariable(
+    name="instance_type",
+    type="string",           # string | number | bool | list | map | object | any
+    description="EC2 type",
+    default="t3.micro",
+    required=False,
+    sensitive=False,
+)
+```
+
+---
+
+### `TerraformOutput`
+
+```python
+from terraform_modules import TerraformOutput
+
+TerraformOutput(
+    name="instance_id",
+    description="EC2 Instance ID",
+    value_expression="aws_instance.main.id",
+    sensitive=False,
+)
+```
+
+---
+
+### `TerraformExample`
+
+```python
+from terraform_modules import TerraformExample
+
+TerraformExample(
+    title="Basic web server",
+    description="A minimal t3.small web server.",
+    hcl_code='module "web" { ... }',
+)
+```
+
+---
+
+### `TerraformModule`
+
+Dataclass holding all module metadata. Key fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `str` | UUID primary key |
+| `name` | `str` | Unique module name |
+| `provider` | `str` | Cloud provider |
+| `resource_type` | `str` | Terraform resource type |
+| `version` | `str` | Semver version string |
+| `hcl_template` | `str` | Template with `${var.*}` placeholders |
+| `variables` | `list[TerraformVariable]` | Input variable definitions |
+| `outputs` | `list[TerraformOutput]` | Output value definitions |
+| `examples` | `list[TerraformExample]` | Usage examples |
+| `tags` | `list[str]` | Searchable tags |
+| `download_count` | `int` | Number of times generated |
+
+Helper method: `module.bump_version("patch" | "minor" | "major") -> str`
+
+---
+
+### `ValidationResult`
+
+```python
+result = registry.validate_hcl(hcl)
+result.valid     # bool
+result.errors    # list[str]  – fatal issues
+result.warnings  # list[str]  – non-fatal advisories
+```
+
+---
+
+### Full Python API Example
 
 ```python
 from terraform_modules import (
@@ -259,7 +447,33 @@ The schema is auto-created on first run.
 └── terraform-modules.db   # SQLite module registry
 ```
 
+**Indexes:**
+
+| Index | Column | Type |
+|-------|--------|------|
+| `idx_provider` | `provider` | Standard |
+| `idx_resource_type` | `resource_type` | Standard |
+| `idx_name` | `name` | Unique |
+
 To reset the registry: `rm ~/.blackroad/terraform-modules.db`
+
+---
+
+## 📁 Project Structure
+
+```
+blackroad-terraform-modules/
+├── terraform_modules.py          # Core implementation (dataclasses, registry, CLI)
+├── tests/
+│   ├── __init__.py
+│   └── test_terraform_modules.py # 30 pytest tests
+├── .github/
+│   └── workflows/
+│       └── ci.yml                # CI: lint (ruff) + test matrix (3.10/3.11/3.12) + security
+├── requirements.txt              # Runtime + dev dependencies
+├── LICENSE
+└── README.md
+```
 
 ---
 
@@ -270,26 +484,33 @@ pip install pytest pytest-cov typer rich
 pytest tests/ -v --cov=terraform_modules --cov-report=term-missing
 ```
 
-Expected: **30+ tests passing** across registration, generation, validation, listing, plan export, search, docs, stats, and delete.
+Expected: **30 tests passing** across registration, generation, validation, listing, plan export, search, docs, stats, and delete.
 
 ---
 
-## 📁 Project Structure
+## 🤝 Contributing
 
-```
-blackroad-terraform-modules/
-├── terraform_modules.py          # Core implementation (400+ lines)
-├── tests/
-│   └── test_terraform_modules.py # 30+ pytest tests
-├── .github/
-│   └── workflows/
-│       └── ci.yml                # CI: lint + test matrix
-└── README.md
-```
+1. Fork the repository and create a feature branch.
+2. Make your changes and add/update tests in `tests/test_terraform_modules.py`.
+3. Ensure all 30 tests pass: `pytest tests/ -v`
+4. Run the linter: `ruff check terraform_modules.py tests/`
+5. Open a pull request against `main`.
+
+Please follow existing code style and keep changes focused and minimal.
 
 ---
 
-## 🔒 License
+## 🔒 Security
+
+See [SECURITY.md](./SECURITY.md) for the vulnerability disclosure policy.
+
+To report a security issue, please **do not** open a public GitHub issue.  
+Contact the security team directly per the instructions in `SECURITY.md`.
+
+---
+
+## 📄 License
 
 Proprietary — © BlackRoad OS, Inc. All rights reserved.  
-See [SECURITY.md](./SECURITY.md) for vulnerability disclosure policy.
+See [LICENSE](./LICENSE) for full terms.
+

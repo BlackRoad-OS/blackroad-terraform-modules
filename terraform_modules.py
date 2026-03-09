@@ -297,7 +297,7 @@ class TerraformRegistry:
         if not block_pattern.search(hcl_string):
             warnings.append("No resource/data/module block found — is this intentional?")
         # resource block should have two label strings
-        resource_lines = [l.strip() for l in hcl_string.splitlines() if l.strip().startswith("resource")]
+        resource_lines = [l.strip() for l in hcl_string.splitlines() if re.match(r'resource\s', l.strip())]
         for rl in resource_lines:
             parts = rl.split()
             if len(parts) < 3:
@@ -884,8 +884,8 @@ if HAS_RICH:
         global registry
         registry = TerraformRegistry()
 
-    @app.command()
-    def list(
+    @app.command(name="list")
+    def list_modules_cmd(
         provider: Optional[str] = typer.Option(None, "--provider", "-p", help="Filter by provider"),
         resource: Optional[str] = typer.Option(None, "--resource", "-r", help="Filter by resource type"),
     ):
